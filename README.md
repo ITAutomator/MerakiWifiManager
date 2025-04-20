@@ -32,6 +32,11 @@ Before using the script, ensure the following:
 3. Use that CSV file to plan updates to your SSIDs.
 4. On the menu choose U to update your Meraki network SSIDS.
 
+Notes:  
+The script is careful about making changes, so that it can be run repeatedly, skipping items that are already OK.  
+If no changes to a SSID are required, the change is displayed as already OK and processing continues without interaction.  
+If properties are changing, each property change is displayed and confirmed before any change is made.  
+
 ## Menu: Report
 
 Use the Report menu to export a CSV file with all the SSID settings for the organization.  
@@ -47,7 +52,8 @@ Change rows to `Add` or `Remove` as needed.
 
 To use the CSV for Update purposes, change the AddRemoveSkip column to Add or Remove or Skip
 
-- Remove: Only the SSIDName matters, other columns are ignored.  Meraki slot name is returned to default d SSID
+- Remove: Only the SSIDName matters, other columns are ignored.  Meraki slot name is returned to the default "Unconfigured SSID" name.  
+  Removes are processed first.  This ensures that free slots are available for Adds.  
 - Add   : Existing SSIDName will be updated if found, otherwise added to next available slot (slot number is ignored).
 - Skip  : Ignore this row. Rows can also be deleted.  
 

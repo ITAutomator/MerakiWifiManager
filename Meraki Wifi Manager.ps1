@@ -166,7 +166,7 @@ Do { # action
             $i += 1
             $NetworkId = $network.id
             $NetworkName = $network.name
-            Write-Host " Network $($i) of $($i_count): $($NetworkName) (ID: $($NetworkId))"
+            Write-Host " Network $($i) of $($i_count): $($NetworkName) (ID: $($NetworkId))" -NoNewline
             # ssids (wifis)
             $Ssids, $sReturn = Get-Ssids $settings.api_key $OrgId $NetworkId $include_disabled_yesno
             Write-Host "    $($sReturn)"
@@ -178,8 +178,8 @@ Do { # action
                     Organization  = $settings.Organization
                     NetworkName   = $network.name
                     AddRemoveSkip     = "Skip"
-                    SSIDName                = $ssid.name
-                    SSIDPass                = $ssid.psk
+                    SSIDName            = $ssid.name
+                    SSIDPassword        = $ssid.psk
                     Number              = $ssid.number
                     defaultVlanId       = $ssid.defaultVlanId
                     useVlanTagging      = $ssid.useVlanTagging
@@ -250,177 +250,149 @@ Do { # action
         Write-Host $sReturn
         if ($sReturn.StartsWith("ERR")) {PressEnterToContinue;Continue}
         # Network info
-        # Remove
-        $csvChanges = $csvData | Where-Object AddRemoveSkip -eq "Remove"
-        $i = 0
-        $UpdateChoice = ""
-        ForEach ($csvChange in $csvChanges)
-        { # csvChange
-            $i += 1
-            Write-Host "Remove $($i) [$($csvChange.NetworkName)] " -NoNewline
-            Write-host  $csvChange.SSIDName -ForegroundColor Yellow -NoNewline
-            $NetworkId = $networks | Where-Object name -eq $csvChange.NetworkName | Select-Object id -first 1 -ExpandProperty id
-            if ($null -eq $NetworkId) { Write-Host "ERR: Couldn't find network $($csvChange.NetworkName)";PressEnterToContinue;exit}
-            $Ssids, $sReturn = Get-Ssids $settings.api_key $OrgId $NetworkId "yes"
-            # Check if SSID exists (by name)
-            $ssid = $ssids | Where-Object { $_.name -eq $csvChange.SSIDName }
-            if ($ssid) {
-                Write-Host " Slot [$(1+$ssid.number)]" -NoNewline
-                # compare to target
-                $target_name           = "Unconfigured SSID $(1+$ssid.number)"
-                $target_enabled        = $false
-                $target_authMode       = "open"
-                #$target_vlan           = ""
-                $target_useVlanTagging = $false
-                # see if update is needed
-                $sWarnings = @()
-                if ($ssid.name -ne $target_name)         {$sWarnings += "   name: Change [$($ssid.name)] to [$($target_name)]"}
-                if ($ssid.enabled -ne $target_enabled)   {$sWarnings += "   enabled: Change [$($ssid.enabled)] to [$($target_enabled)]"}
-                if ($ssid.authMode -ne $target_authMode) {$sWarnings += "   authMode: Change [$($ssid.authMode)] to [$($target_authMode)]"}
-                if ($ssid.useVlanTagging -ne $target_useVlanTagging) {$sWarnings += "   useVlanTagging: Change [$($ssid.useVlanTagging)] to [$($target_useVlanTagging)]"}
-                if ($sWarnings.count -eq 0)
-                { # no update needed
-                    Write-Host " OK: Already set properly" -ForegroundColor Green
-                } # no update needed
-                else
-                { # update needed
-                    Write-Host ""
-                    $sWarnings | Out-Host
-                    $uri = "$baseUrl/networks/$NetworkId/wireless/ssids/$($ssid.number)"
-                    if ($UpdateChoice -ne "Update All") {
-                        $UpdateChoice = askForChoice $msg -Choices @("&Update","Update &All","&Skip","E&xit") -DefaultChoice 1 -ReturnString
-                        if ($UpdateChoice -eq "Exit") {
-                            Exit
-                        }
-                    } # update choice
-                    if ($UpdateChoice -eq "Skip") {
-                        Write-Host "    Skipping"  -ForegroundColor Yellow
-                    } # skip
-                    else { # not skip
-                        $payload = @{
-                            name           = $target_name
-                            enabled        = $target_enabled
-                            authMode       = $target_authMode
-                            useVlanTagging = $target_useVlanTagging
-                        }
-                        try {
-                            $results = Invoke-RestMethod -Uri $uri -Headers $headers -Method Put -Body ($payload | ConvertTo-Json -Depth 5)
-                        } catch {
-                            $warning = $_
-                            Write-Host "ERR: $($warning.ToString())" -ForegroundColor Yellow
+        $actions = @("Remove","Add")
+        foreach ($action in $actions)
+        { # action
+            $csvChanges = $csvData | Where-Object AddRemoveSkip -eq $action
+            $i = 0
+            ForEach ($csvChange in $csvChanges)
+            { # csvChange
+                $i += 1
+                Write-Host "$($action) $($i) [$($csvChange.NetworkName)] " -NoNewline
+                Write-host  $csvChange.SSIDName -ForegroundColor Yellow -NoNewline
+                $Network = $networks | Where-Object name -eq $csvChange.NetworkName | Select-Object -first 1
+                if ($null -eq $Network) { Write-Host "ERR: Couldn't find network $($csvChange.NetworkName)";PressEnterToContinue;exit}
+                $NetworkId = $Network.id
+                $NetworkUrl = $Network.url
+                if ($Ssids_networkid -ne $NetworkId)
+                { # get ssids for this network
+                    $Ssids, $sReturn = Get-Ssids $settings.api_key $OrgId $NetworkId "yes"
+                    $Ssids_networkid = $NetworkId
+                } # get ssids for this network
+                # Check if SSID exists (by name)
+                $ssid = $Ssids | Where-Object { $_.name -eq $csvChange.SSIDName } | Select-Object -First 1
+                # No SSID found matching name
+                if ($null -eq $ssid) {
+                    if ($action -eq "Add")
+                    { # Add
+                        # Choose first unconfigured SSID slot (that is also disabled)
+                        $ssid = $Ssids | Where-Object { ($_.name -like "Unconfigured SSID*") -and ($_.enabled -eq $false) } | Select-Object -First 1
+                        if ($null -eq $ssid)  {
+                            Write-Host "ERR: No free slots for a new SSID" -ForegroundColor Yellow
                             PressEnterToContinue
-                        }
-                        Write-Host "    OK: Removed"  -ForegroundColor Yellow
-                   } # not skip
-                } # update needed
-            } # exists
-            else {
-                Write-Host " OK: Already removed" -ForegroundColor Green
-            } # doesn't exist
-        } # csvChange
-        # Add
-        $csvChanges = $csvData | Where-Object AddRemoveSkip -eq "Add"
-        $i = 0
-        ForEach ($csvChange in $csvChanges)
-        { # csvChange
-            $i += 1
-            Write-Host "Add $($i) [$($csvChange.NetworkName)] " -NoNewline
-            Write-host  $csvChange.SSIDName -ForegroundColor Yellow -NoNewline
-            $NetworkId = $networks | Where-Object name -eq $csvChange.NetworkName | Select-Object id -first 1 -ExpandProperty id
-            if ($null -eq $NetworkId) { Write-Host "ERR: Couldn't find network $($csvChange.NetworkName)";PressEnterToContinue;exit}
-            $Ssids, $sReturn = Get-Ssids $settings.api_key $OrgId $NetworkId "yes"
-            # Check if SSID exists (by name)
-            $ssid = $ssids | Where-Object { $_.name -eq $csvChange.SSIDName } | Select-Object -First 1
-            # Check if Unconfigured SSID exist
-            if ($null -eq $ssid) {
-                $ssid = $ssids | Where-Object { ($_.name -like "Unconfigured SSID*") -and ($_.enabled -eq $false) } | Select-Object -First 1
-            }
-            if ($ssid) {
-                Write-Host " Slot [$(1+$ssid.number)]" -NoNewline
-                # basics
-                $target_name           = $csvChange.SSIDName
-                $target_enabled        = $csvChange.Enabled -ne 'false' # default is true unless explicit
-                $target_visible        = $csvChange.visible -ne 'false' # default is true unless explicit
-                # auth
-                $target_psk            = $csvChange.SSIDPass
-                $target_authMode       = $csvChange.authMode
-                $target_encryptionMode     = $csvChange.encryptionMode
-                #$target_wpaencryptionMode  = $csvChange.wpaencryptionMode
-                # networking
-                $target_ipAssignmentMode  = if ($csvChange.ipAssignmentMode -eq '') {"Bridge mode"} else {$csvChange.ipAssignmentMode}
-                # ipAssignmentMode
-                # Bridge mode: Normal network access
-                # Layer 3 roaming: Same as Bridge mode with a virtualization layer. Generally not advised since L2 roaming works, and L3 roaming creates an extra tunnel back to the orginal VLan (https://www.reddit.com/r/networking/comments/13dkpbt/meraki_l3_roaming_is_it_necessary/)
-                # NAT mode: (useVlanTagging,defaultVlanId must be null) clients are isolated from other wifi clients on a Meraki assigned network
-                if ($target_ipAssignmentMode -eq "NAT mode")
-                { # NAT mode
-                    $target_useVlanTagging = $null
-                    $target_defaultVlanId  = $null
-                } # NAT mode
-                else
-                { # Bridge mode, Layer 3 roaming mode
-                    $target_useVlanTagging = $csvChange.useVlanTagging -eq 'true' # default is false unless explicit
-                    $target_defaultVlanId  = if ($csvChange.defaultVlanId -eq '') {$null} else {$csvChange.defaultVlanId} # default / blank is null
-                } # Bridge mode, Layer 3 roaming mode
-                # see which update is needed
-                $sWarnings = @()
-                $payload= @{}
-                ## basics: name enabled visible lanIsolationEnabled
-                # [not needed] if ($ssid.lanIsolationEnabled -ne $target_lanIsolationEnabled)    {$sWarnings += "   lanIsolationEnabled: Change [$($ssid.lanIsolationEnabled)] to [$($target_lanIsolationEnabled)]"; $payload['lanIsolationEnabled'] = $target_lanIsolationEnabled}
-                if ($ssid.name -ne $target_name)          {$sWarnings += "   name: Change [$($ssid.name)] to [$($target_name)]"; $payload['name'] = $target_name}
-                if ($ssid.enabled -ne $target_enabled)    {$sWarnings += "   enabled: Change [$($ssid.enabled)] to [$($target_enabled)]"; $payload['enabled'] = $target_enabled}
-                if ($ssid.visible -ne $target_visible)    {$sWarnings += "   visible: Change [$($ssid.visible)] to [$($target_visible)]"; $payload['visible'] = $target_visible}
-                ## auth: SSIDPass authMode encryptionMode wpaencryptionMode
-                # [not needed] if ($ssid.wpaencryptionMode -ne $target_wpaencryptionMode)  {$sWarnings += "   wpaencryptionMode: Change [$($ssid.wpaencryptionMode)] to [$($target_wpaencryptionMode)]"; $payload['wpaencryptionMode'] = $target_wpaencryptionMode}
-                if ($ssid.psk -ne $target_psk)            {$sWarnings += "   psk: Change [$($ssid.psk)] to [$($target_psk)]"; $payload['psk'] = $target_psk}
-                if ($ssid.authMode -ne $target_authMode)  {$sWarnings += "   authMode: Change [$($ssid.authMode)] to [$($target_authMode)]"; $payload['authMode'] = $target_authMode}
-                if ($ssid.encryptionMode -ne $target_encryptionMode)        {$sWarnings += "   encryptionMode: Change [$($ssid.encryptionMode)] to [$($target_encryptionMode)]"; $payload['encryptionMode'] = $target_encryptionMode}
-                ## networking: ipAssignmentMode useVlanTagging defaultVlanId
-                if ($ssid.ipAssignmentMode -ne $target_ipAssignmentMode)        {$sWarnings += "   ipAssignmentMode: Change [$($ssid.ipAssignmentMode)] to [$($target_ipAssignmentMode)]"; $payload['ipAssignmentMode'] = $target_ipAssignmentMode}
-                if ($ssid.defaultVlanId -ne $target_defaultVlanId)   {$sWarnings += "   defaultVlanId: Change [$($ssid.defaultVlanId)] to [$($target_defaultVlanId)]"; $payload['defaultVlanId'] = $target_defaultVlanId}
-                $ssid_useVlanTagging = $ssid.useVlanTagging -eq 'true' # default is false unless explicit
-                if ($ssid_useVlanTagging -ne $target_useVlanTagging) {$sWarnings += "   useVlanTagging: Change [$($ssid.useVlanTagging)] to [$($target_useVlanTagging)]"; $payload['useVlanTagging'] = $target_useVlanTagging}
-                ##
-                if ($sWarnings.count -eq 0)
-                { # no update needed
-                    Write-Host " OK: Already set properly" -ForegroundColor Green
-                } # no update needed
-                else
-                { # update needed
-                    Write-Host ""
-                    $sWarnings | Out-Host
-                    $uri = "$baseUrl/networks/$NetworkId/wireless/ssids/$($ssid.number)"
-                    if ($UpdateChoice -ne "Update All") {
-                        $UpdateChoice = askForChoice $msg -Choices @("&Update","Update &All","&Skip","E&xit") -DefaultChoice 1 -ReturnString
-                        if ($UpdateChoice -eq "Exit") {
-                            Exit
-                        }
-                    } # update choice
-                    if ($UpdateChoice -eq "Skip") {
-                        Write-Host "    Skipping"  -ForegroundColor Yellow
-                    } # skip
-                    else { # not skip
-                        try {
-                            $results = Invoke-RestMethod -Uri $uri -Headers $headers -Method Put -Body ($payload | ConvertTo-Json -Depth 5)
-                        } catch {
-                            $warning = $_
-                            Write-Host "ERR: $($warning.ToString())" -ForegroundColor Yellow
-                            PressEnterToContinue
-                        }
-                        Write-Host "    OK: Added (Enabled: $($target_enabled))"  -ForegroundColor Yellow
-                    } # not skip
-                } # update needed
-            } # exists
-            else {
-                Write-Host "ERR: No free slots for a new SSID" -ForegroundColor Yellow
-                PressEnterToContinue
-            } # doesn't exist
-        } # csvChange
+                        } # doesn't exist
+                    } # Add
+                    else
+                    { # Remove
+                        Write-Host " OK: Already removed" -ForegroundColor Green
+                    } # Remove
+                }
+                if ($ssid)
+                { # ssid to update
+                    Write-Host " Slot [$(1+$ssid.number)]" -NoNewline
+                    if ($action -eq "add")
+                    { # add
+                        # targets for action: add
+                        # basics
+                        $target_name           = $csvChange.SSIDName
+                        $target_enabled        = $csvChange.Enabled -ne 'false' # default is true unless explicit
+                        $target_visible        = $csvChange.visible -ne 'false' # default is true unless explicit
+                        # auth
+                        $target_psk            = $csvChange.SSIDPassword
+                        $target_authMode       = $csvChange.authMode
+                        $target_encryptionMode = $csvChange.encryptionMode
+                        # networking
+                        $target_ipAssignmentMode    = if ($csvChange.ipAssignmentMode -eq '') {"Bridge mode"} else {$csvChange.ipAssignmentMode}
+                        $target_lanIsolationEnabled = $csvChange.lanIsolationEnabled -eq 'true' # default is false unless explicit
+                        $target_useVlanTagging = $csvChange.useVlanTagging -eq 'true' # default is false unless explicit
+                        $target_defaultVlanId  = [int]$csvChange.defaultVlanId  # blank / null is 0
+                    } # add
+                    else
+                    { # remove
+                        # targets for action: remove
+                        # basics
+                        $target_name           = "Unconfigured SSID $(1+$ssid.number)"
+                        $target_enabled        = $false
+                        $target_visible        = $true
+                        # auth
+                        $target_psk            = $null
+                        $target_authMode       = "open"
+                        $target_encryptionMode = $null
+                        # networking
+                        $target_ipAssignmentMode    = "NAT mode"
+                        $target_lanIsolationEnabled = $false
+                        $target_useVlanTagging = $false
+                        $target_defaultVlanId  = 0
+                    } # remove
+                    # ipAssignmentMode
+                    # Bridge mode: Normal network access
+                    # Layer 3 roaming: Same as Bridge mode with a virtualization layer. Generally not advised since L2 roaming works, and L3 roaming creates an extra tunnel back to the orginal VLan (https://www.reddit.com/r/networking/comments/13dkpbt/meraki_l3_roaming_is_it_necessary/)
+                    # NAT mode: (useVlanTagging,defaultVlanId must be null) clients are isolated from other wifi clients on a Meraki assigned network
+                    if ($target_ipAssignmentMode -eq "NAT mode")
+                    { # NAT mode
+                        $target_useVlanTagging = $false # default is false unless explicit
+                        $target_defaultVlanId  = 0 # 0 is same as null
+                    } # NAT mode
+                    if ($target_ipAssignmentMode -ne "Bridge mode") {
+                        $target_lanIsolationEnabled = $false # lanIsolationEnabled is not supported in NAT mode or Layer 3 roaming mode
+                    } # not Bridge mode
+                    # Other adjustments
+                    # see which update is needed
+                    $sWarnings = @()
+                    $payload= @{}
+                    ## basics: name enabled visible lanIsolationEnabled
+                    if ($ssid.name -ne $target_name)                               {$sWarnings += "   name:                Change [$($ssid.name)] to [$($target_name)]"                              ; $payload['name'] = $target_name}
+                    if ($ssid.enabled -ne $target_enabled)                         {$sWarnings += "   enabled:             Change [$($ssid.enabled)] to [$($target_enabled)]"                        ; $payload['enabled'] = $target_enabled}
+                    if ($ssid.visible -ne $target_visible)                         {$sWarnings += "   visible:             Change [$($ssid.visible)] to [$($target_visible)]"                        ; $payload['visible'] = $target_visible}
+                    ## auth: psk authMode encryptionMode wpaencryptionMode
+                    if ($ssid.psk -ne $target_psk)                                 {$sWarnings += "   psk:                 Change [$($ssid.psk)] to [$($target_psk)]"                                ; $payload['psk'] = $target_psk}
+                    if ($ssid.authMode -ne $target_authMode)                       {$sWarnings += "   authMode:            Change [$($ssid.authMode)] to [$($target_authMode)]"                      ; $payload['authMode'] = $target_authMode}
+                    if ($ssid.encryptionMode -ne $target_encryptionMode)           {$sWarnings += "   encryptionMode:      Change [$($ssid.encryptionMode)] to [$($target_encryptionMode)]"          ; $payload['encryptionMode'] = $target_encryptionMode}
+                    ## networking: ipAssignmentMode useVlanTagging defaultVlanId
+                    if ($ssid.ipAssignmentMode -ne $target_ipAssignmentMode)       {$sWarnings += "   ipAssignmentMode:    Change [$($ssid.ipAssignmentMode)] to [$($target_ipAssignmentMode)]"      ; $payload['ipAssignmentMode'] = $target_ipAssignmentMode}
+                    $ssid_defaultVlanId = [int]$ssid.defaultVlanId # null/blank is 0
+                    if ($ssid_defaultVlanId -ne $target_defaultVlanId)             {$sWarnings += "   defaultVlanId:       Change [$($ssid.defaultVlanId)] to [$($target_defaultVlanId)]"            ; $payload['defaultVlanId'] = $target_defaultVlanId}
+                    $ssid_useVlanTagging = if($null -eq $ssid.useVlanTagging) {$false} else {$ssid.useVlanTagging -eq 'true'} # default is false unless explicitly null
+                    if ($ssid_useVlanTagging -ne $target_useVlanTagging)           {$sWarnings += "   useVlanTagging:      Change [$($ssid.useVlanTagging)] to [$($target_useVlanTagging)]"          ; $payload['useVlanTagging'] = $target_useVlanTagging}
+                    $ssid_lanIsolationEnabled = if($null -eq $ssid.lanIsolationEnabled) {$false} else {$ssid.lanIsolationEnabled -eq 'true'} # default is false unless explicitly null
+                    if ($ssid_lanIsolationEnabled -ne $target_lanIsolationEnabled) {$sWarnings += "   lanIsolationEnabled: Change [$($ssid.lanIsolationEnabled)] to [$($target_lanIsolationEnabled)]"; $payload['lanIsolationEnabled'] = $target_lanIsolationEnabled}
+                    ##
+                    if ($sWarnings.count -eq 0)
+                    { # no update needed
+                        Write-Host " OK: Already set properly" -ForegroundColor Green
+                    } # no update needed
+                    else
+                    { # update needed
+                        Write-Host ""
+                        $sWarnings | Out-Host
+                        $uri = "$baseUrl/networks/$NetworkId/wireless/ssids/$($ssid.number)"
+                        if ($UpdateChoice -ne "Update All") {
+                            $UpdateChoice = askForChoice $msg -Choices @("&Update","Update &All","&Skip","E&xit") -DefaultChoice 1 -ReturnString
+                            if ($UpdateChoice -eq "Exit") {
+                                Exit
+                            }
+                        } # update choice
+                        if ($UpdateChoice -eq "Skip") {
+                            Write-Host "    Skipping"  -ForegroundColor Yellow
+                        } # skip
+                        else { # not skip
+                            try {
+                                $results = Invoke-RestMethod -Uri $uri -Headers $headers -Method Put -Body ($payload | ConvertTo-Json -Depth 5)
+                            } catch {
+                                $warning = $_
+                                Write-Host "ERR: $($warning.ToString())" -ForegroundColor Yellow
+                                PressEnterToContinue
+                            }
+                            Write-Host "    OK: Updated in network [$($NetworkUrl)]"  -ForegroundColor Yellow
+                        } # not skip
+                    } # update needed
+                } # ssid to update
+            } # csvChange
+        } # action
     } # update
     Write-Host "Done"
     Start-sleep 2
 } While ($true) # loop until Break 
-Write-Host "Exiting"
 #region Transcript Save
 Stop-Transcript | Out-Null
 $TranscriptTarget = "$($scriptDir)\Logs\$($scriptBase)_$(Get-Date -format "yyyy-MM-dd HH-mm-ss")_transcript.txt"
@@ -428,3 +400,4 @@ New-Item -Path (Split-path $TranscriptTarget -Parent) -ItemType Directory -Force
 If (Test-Path $TranscriptTarget) {Remove-Item $TranscriptTarget -Force}
 Move-Item $Transcript $TranscriptTarget -Force
 #endregion Transcript Save
+Write-Host "Exited. Transcript saved to: $(Split-path $TranscriptTarget -Leaf)"

@@ -34,11 +34,14 @@ Before using the script, ensure the following:
 
 ## Menu: Report
 
-Use the Report menu to export a CSV with all the SSID settings for the organization.
-This CSV can be used as the basis for an Update operation.
-Initially, all rows are set to `Skip`, change rows to `Add` or `Remove` as needed.
-If you are just updating an existing SSID row, use `Add`.
-If you want to add more rows, add them manually, by copying existing SSIDS and changing contents.
+Use the Report menu to export a CSV file with all the SSID settings for the organization.  
+This CSV can be used as the basis for an Update operation.  
+
+Initially, all rows are set to `Skip`.  
+Change rows to `Add` or `Remove` as needed.  
+
+- If you are just updating an existing SSID row, use `Add`.  
+- If you want to add more rows, add them manually by copying existing SSIDs and changing their contents.  
 
 ## Menu: Update
 

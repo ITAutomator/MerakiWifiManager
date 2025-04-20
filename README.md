@@ -4,7 +4,7 @@ This repository contains the `Meraki Wifi Manager.ps1` script, a PowerShell tool
 
 <img src=https://raw.githubusercontent.com/ITAutomator/Assets/main/Meraki/MerakiWifiMain.png alt="screenshot" width="500"/>
 
-User guide (pdf): Click [here](https://github.com/ITAutomator/MerakiWifiManager/blob/main/MerakiWifiManager%20Readme.pdf)  
+User guide: Click [here](https://github.com/ITAutomator/MerakiWifiManager)  
 Download from GitHub as [ZIP](https://github.com/ITAutomator/MerakiWifiManager/archive/refs/heads/main.zip)  
 Or Go to GitHub [here](https://github.com/ITAutomator/MerakiWifiManager) and click `Code` (the green button) `> Download Zip`  
 

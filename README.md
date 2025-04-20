@@ -17,8 +17,8 @@ Or Go to GitHub [here](https://github.com/ITAutomator/MerakiWifiManager) and cli
 
 Before using the script, ensure the following:
 
-1. **PowerShell**: The script requires PowerShell 5.1 or later.
-2. **Meraki API Key**: Obtain an API key from the Meraki Dashboard. Refer to the [Meraki API Documentation](https://developer.cisco.com/meraki/api/) for details.
+1. **Organization name**: Obtain your Organization name (*Organization > Configure > Settings*). [Meraki Org Name Docs](https://documentation.meraki.com/General_Administration/Organizations_and_Networks/Organization_Menu/Organization_Settings)
+2. **Meraki API Key**: Obtain an API key from the Meraki Dashboard (*Account > My Profile > API key*). Refer to the [Meraki API Docs](https://developer.cisco.com/meraki/api-v1/authorization/#obtaining-your-meraki-api-key/) for details.
 
 ## Installation
 

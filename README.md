@@ -79,3 +79,5 @@ To use the CSV for Update purposes, change the AddRemoveSkip column to Add or Re
 | `useVlanTagging`     | `True` (requires defaultVlanId) or `False` (default)                          |
 | `defaultVlanId`      | The VLAN ID associated with the SSID (ignored if useVlanTagging is False).           |
 | `lanIsolationEnabled`| `True` (requires Bridge mode) or `False` (default). Isolates clients from other clients (wired and wireless)                        |
+
+More info here: [www.itautomator.com](https://www.itautomator.com/meraki-wifi-manager/)

@@ -57,7 +57,7 @@ if /I "%quiet%" == "false" (timeout /t 2 > nul) else (echo [-quiet: 2 seconds...
 :ADMIN_DONE
 :: powershell version
 set exename="powershell.exe"
-if exist "%ProgramFiles%\PowerShell\7\pwsh.exe" set psh_menu=true
+:: if exist "%ProgramFiles%\PowerShell\7\pwsh.exe" set psh_menu=true
 if [%psh_menu%]==[] goto :PSH_MENU_DONE
 CHOICE /T 5 /C 57 /D 7 /N /M "Multiple PS versions detected. Select PowerShell Version [5] or [7 Default] 5 secs:"
 if %ERRORLEVEL%==1 echo Powershell 5 & goto :PSH_MENU_DONE

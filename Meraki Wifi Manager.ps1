@@ -101,12 +101,15 @@ Function APIkeyUpdate ($settings, $csvFile)
     }
     Write-Host "Meraki API Key (from Account > My Profile > API key)"
     Write-Host "Note: The API key is stored encrypted in the settings file. Only this Windows account can read it."
-    $apiKey_str = PromptForString -Prompt "API Key (type 'exit' to cancel)" -defaultValue "<Enter API Key>"
+    $apiKey_str = PromptForString -Prompt "API Key (type 'exit' to cancel)" -defaultValue "<API Key>"
     if ($apiKey_str -eq 'exit') {
         Return "Err: Aborted"
     }
+    # Save settings
     $settings.Organization = $OrgName
-    $settings.$api_key_valuename = EncryptString $apiKey_str # encrypt the API key (only this Windows account can read it)
+    if ($apiKey_str -ne "<API Key>") { # only update if something was typed
+        $settings.$api_key_valuename = EncryptString $apiKey_str # encrypt the API key (only this Windows account can read it)
+    }
     $retVal = CSVSettingsSave $settings $csvFile
     Return "OK"
 } # APIkeyUpdate

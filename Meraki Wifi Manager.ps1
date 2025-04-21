@@ -1,9 +1,17 @@
+<#
+Meraki Wifi Manager
+
+This script reports or updates wifi settings across multiple Meraki networks
+
+Readme: https://github.com/ITAutomator/MerakiWifiManager
+www.itautomator.com
+#>
 ######################
 ### Functions
 ######################
 Function Get-Ssids ($apiKey="", $OrgId="", $NetworkId = "", $include_disabled_yesno = "no")
 {
-    # Usage: $Ssids, $sReturn = Get-Ssids $settings.api_key $OrgId $NetworkId $include_disabled_yesno
+    # Usage: $Ssids, $sReturn = Get-Ssids $apikey $OrgId $NetworkId $include_disabled_yesno
     $sReturn = "OK"
     $baseUrl = "https://api.meraki.com/api/v1"
     # Create the header for API calls
@@ -30,10 +38,10 @@ Function Get-Ssids ($apiKey="", $OrgId="", $NetworkId = "", $include_disabled_ye
     }
     $sReturn = "OK: $($Ssids.Count) Ssids found"
     Return $Ssids, $sReturn
-}
+} # Get-Ssids
 Function Get-Networks ($apiKey="", $OrgId="")
 {
-    # Usage: $networks, $sReturn = Get-Networks $settings.api_key $OrgId
+    # Usage: $networks, $sReturn = Get-Networks $apikey $OrgId
     $sReturn = "OK"
     $baseUrl = "https://api.meraki.com/api/v1"
     # Create the header for API calls
@@ -51,10 +59,10 @@ Function Get-Networks ($apiKey="", $OrgId="")
     }
     $sReturn = "OK: $($networks.Count) Networks found"
     Return $networks, $sReturn
-}
+} # Get-Networks
 Function Get-OrgID ($apiKey="",$Organization="")
 {
-    # Usage: $OrgId, $sReturn = Get-OrgID $settings.api_key $settings.Organization
+    # Usage: $OrgId, $sReturn = Get-OrgID $apikey $Organization
     $sReturn = "OK"
     $baseUrl = "https://api.meraki.com/api/v1"
     # Create the header for API calls
@@ -81,7 +89,27 @@ Function Get-OrgID ($apiKey="",$Organization="")
         $sReturn = "OK: $($Organization) can be reached at [$($Org.url)]"
     }
     Return $OrgId, $sReturn
-}
+} # Get-OrgID
+Function APIkeyUpdate ($settings, $csvFile)
+{
+    # Usage: $settings = APIkeyUpdate $settings $csvFile $api_key_valuename
+    Write-Host "Updating the settings file: $(Split-Path $csvFile -Leaf)"
+    Write-Host "Meraki Organization name (from Organization > Configure > Settings)"
+    $OrgName = PromptForString -Prompt "Organization (type 'exit' to cancel)" -defaultValue $settings.Organization
+    if ($OrgName -eq 'exit') {
+        Return "Err: Aborted"
+    }
+    Write-Host "Meraki API Key (from Account > My Profile > API key)"
+    Write-Host "Note: The API key is stored encrypted in the settings file. Only this Windows account can read it."
+    $apiKey_str = PromptForString -Prompt "API Key (type 'exit' to cancel)" -defaultValue "<Enter API Key>"
+    if ($apiKey_str -eq 'exit') {
+        Return "Err: Aborted"
+    }
+    $settings.Organization = $OrgName
+    $settings.$api_key_valuename = EncryptString $apiKey_str # encrypt the API key (only this Windows account can read it)
+    $retVal = CSVSettingsSave $settings $csvFile
+    Return "OK"
+} # APIkeyUpdate
 ######################
 ## Main Procedure
 ######################
@@ -104,7 +132,7 @@ Start-Transcript -path $Transcript | Out-Null
 #endregion Transcript Open
 ######################
 Write-Host "-----------------------------------------------------------------------------"
-Write-Host "$($scriptName) $($scriptVer)       Computer:$($env:computername) User:$($env:username) PSver:$($PSVersionTable.PSVersion.Major).$($PSVersionTable.PSVersion.Minor)"
+Write-Host "$($scriptName) $($scriptVer)       User:$($env:computername)\$($env:username) PSver:$($PSVersionTable.PSVersion.Major).$($PSVersionTable.PSVersion.Minor)"
 Write-Host ""
 Write-Host "This script reports or updates wifi settings across multiple Meraki networks"
 Write-Host ""
@@ -114,18 +142,23 @@ $settings = CSVSettingsLoad $csvFile
 Write-Host "Settings file: $(split-path $csvFile -Leaf)"
 # Defaults
 $settings_updated = $false
+$api_key_valuename = "apikey_secure_$($env:COMPUTERNAME)\$($env:USERNAME)"
 if ($null -eq $settings.Organization) {$settings.Organization = "<Enter Org Name>"; $settings_updated = $true}
-if ($null -eq $settings.api_key)      {$settings.api_key      = "<enter_api_key>"; $settings_updated = $true}
+if ($null -eq $settings.$api_key_valuename)      {$settings.$api_key_valuename      = "<enter_api_key>"; $settings_updated = $true}
 if ($settings_updated) {$retVal = CSVSettingsSave $settings $csvFile; Write-Host "Initialized - $($retVal)"}
-# Use Settings
-Write-Host "Organization: $($settings.Organization)"
-Write-Host "api_key: $($settings.api_key.Substring(0,5))****************"
-Write-Host ""
-if ($settings.api_key.StartsWith("<")) {
-    Write-Host "A template settings file has been created.  Update the settings and re-run this script. File: $(Split-Path $csvFile -Leaf)"
-    PressEnterToContinue
-    Start-Process $csvFile
-    Exit
+try {
+    $apiKey = Decryptstring $settings.$api_key_valuename
+}
+catch {
+    $apikey = $null
+}
+if ($null -eq $apiKey) {
+    $retVal = APIkeyUpdate $settings $csvFile
+    Write-host $retVal
+    if ($retVal -eq "OK") {
+        Write-Host "Settings updated" -ForegroundColor Green
+        $apiKey = Decryptstring $settings.$api_key_valuename
+    }
 }
 Do { # action
     $csv_update_file = (Get-ChildItem -Path $scriptDir -Filter "$($scriptBase)_Ssids_*.csv" -File | Sort-Object LastWriteTime -Descending | Select-Object -First 1).FullName
@@ -137,16 +170,29 @@ Do { # action
     } else {
         Write-Host (Split-Path $csv_update_file -Leaf) -ForegroundColor Green
     }
+    Write-Host "[A] Apikey and Organization name. api_key: " -NoNewline
+    try {Write-host "$($apiKey.Substring(0,5))*****" -ForegroundColor Green -NoNewline} Catch {Write-host "Not set" -ForegroundColor Yellow -NoNewline}
+    Write-Host " Org: " -NoNewline
+    Write-host $settings.Organization -ForegroundColor Green
     Write-Host "[X] Exit"
     Write-Host "-------------------------------------------------------"
     $choice = PromptForString "Choice [blank to exit]"
     if (($choice -eq "") -or ($choice -eq "X")) {
         Break
     } # Exit
+    if ($choice -eq "A") {
+        $retVal = APIkeyUpdate $settings $csvFile
+        if ($retVal -eq "OK") {
+            Write-Host "Settings updated" -ForegroundColor Green
+            $apiKey = Decryptstring $settings.$api_key_valuename
+        }
+        else {
+            Write-Host "Settings not updated" -ForegroundColor Yellow
+        }
+    } # update settings
     if ($choice -eq "R")
     { # report
         $include_disabled_yesno = AskForChoice "Include disabled SSIDs (all 15 slots will be listed)" -Choices @("&Yes","&No") -DefaultChoice 1 -ReturnString
-        $apiKey = $settings.api_key
         # Orgid
         $OrgId, $sReturn = Get-OrgID $apiKey $settings.Organization
         Write-Host $sReturn
@@ -168,7 +214,7 @@ Do { # action
             $NetworkName = $network.name
             Write-Host " Network $($i) of $($i_count): $($NetworkName) (ID: $($NetworkId))" -NoNewline
             # ssids (wifis)
-            $Ssids, $sReturn = Get-Ssids $settings.api_key $OrgId $NetworkId $include_disabled_yesno
+            $Ssids, $sReturn = Get-Ssids $apikey $OrgId $NetworkId $include_disabled_yesno
             Write-Host "    $($sReturn)"
             if ($sReturn.StartsWith("ERR")) {PressEnterToContinue;Continue}
             foreach ($ssid in $ssids)
@@ -234,7 +280,6 @@ Do { # action
         $total_updates = ($csvData | Where-Object AddRemoveSkip -eq "Add").count + ($csvData | Where-Object AddRemoveSkip -eq "Remove").count 
         PressEnterToContinue "Press Enter to process $($total_updates) updates"
         # Network info
-        $apiKey = $settings.api_key
         $baseUrl = "https://api.meraki.com/api/v1"
         # Create the header for API calls
         $headers = @{
@@ -266,7 +311,7 @@ Do { # action
                 $NetworkUrl = $Network.url
                 if ($Ssids_networkid -ne $NetworkId)
                 { # get ssids for this network
-                    $Ssids, $sReturn = Get-Ssids $settings.api_key $OrgId $NetworkId "yes"
+                    $Ssids, $sReturn = Get-Ssids $apikey $OrgId $NetworkId "yes"
                     $Ssids_networkid = $NetworkId
                 } # get ssids for this network
                 # Check if SSID exists (by name)

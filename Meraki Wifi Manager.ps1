@@ -3,8 +3,8 @@ Meraki Wifi Manager
 
 This script reports or updates wifi settings across multiple Meraki networks
 
-Readme: https://github.com/ITAutomator/MerakiWifiManager
-www.itautomator.com
+https://github.com/ITAutomator/MerakiWifiManager
+https://www.itautomator.com
 #>
 ######################
 ### Functions
@@ -183,7 +183,8 @@ Do { # action
     if (($choice -eq "") -or ($choice -eq "X")) {
         Break
     } # Exit
-    if ($choice -eq "A") {
+    if ($choice -eq "A")
+    { # apikey update
         $retVal = APIkeyUpdate $settings $csvFile
         if ($retVal -eq "OK") {
             Write-Host "Settings updated" -ForegroundColor Green
@@ -192,7 +193,7 @@ Do { # action
         else {
             Write-Host "Settings not updated" -ForegroundColor Yellow
         }
-    } # update settings
+    } # apikey update
     if ($choice -eq "R")
     { # report
         $include_disabled_yesno = AskForChoice "Include disabled SSIDs (all 15 slots will be listed)" -Choices @("&Yes","&No") -DefaultChoice 1 -ReturnString
@@ -447,5 +448,5 @@ $TranscriptTarget = "$($scriptDir)\Logs\$($scriptBase)_$(Get-Date -format "yyyy-
 New-Item -Path (Split-path $TranscriptTarget -Parent) -ItemType Directory -Force | Out-Null
 If (Test-Path $TranscriptTarget) {Remove-Item $TranscriptTarget -Force}
 Move-Item $Transcript $TranscriptTarget -Force
-#endregion Transcript Save
 Write-Host "Exited. Transcript saved to: $(Split-path $TranscriptTarget -Leaf)"
+#endregion Transcript Save

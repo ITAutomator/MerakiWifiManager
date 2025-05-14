@@ -366,7 +366,7 @@ Do { # action
                         # auth
                         $target_psk            = $null
                         $target_authMode       = "open"
-                        $target_encryptionMode = $null
+                        $target_encryptionMode = "open"
                         # networking
                         $target_ipAssignmentMode    = "NAT mode"
                         $target_lanIsolationEnabled = $false
@@ -394,7 +394,7 @@ Do { # action
                     if ($ssid.enabled -ne $target_enabled)                         {$sWarnings += "   enabled:             Change [$($ssid.enabled)] to [$($target_enabled)]"                        ; $payload['enabled'] = $target_enabled}
                     if ($ssid.visible -ne $target_visible)                         {$sWarnings += "   visible:             Change [$($ssid.visible)] to [$($target_visible)]"                        ; $payload['visible'] = $target_visible}
                     ## auth: psk authMode encryptionMode wpaencryptionMode
-                    if ($ssid.psk -ne $target_psk)                                 {$sWarnings += "   psk:                 Change [$($ssid.psk)] to [$($target_psk)]"                                ; $payload['psk'] = $target_psk}
+                    if (($ssid.psk -ne $target_psk) -and ($target_encryptionMode -ne "open")) {$sWarnings += "   psk:                 Change [$($ssid.psk)] to [$($target_psk)]"                                ; $payload['psk'] = $target_psk}
                     if ($ssid.authMode -ne $target_authMode)                       {$sWarnings += "   authMode:            Change [$($ssid.authMode)] to [$($target_authMode)]"                      ; $payload['authMode'] = $target_authMode}
                     if ($ssid.encryptionMode -ne $target_encryptionMode)           {$sWarnings += "   encryptionMode:      Change [$($ssid.encryptionMode)] to [$($target_encryptionMode)]"          ; $payload['encryptionMode'] = $target_encryptionMode}
                     ## networking: ipAssignmentMode useVlanTagging defaultVlanId

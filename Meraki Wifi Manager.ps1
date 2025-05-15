@@ -164,6 +164,7 @@ if ($null -eq $apiKey) {
     }
 }
 Do { # action
+    $UpdateChoice = ""
     $csv_update_file = (Get-ChildItem -Path $scriptDir -Filter "$($scriptBase)_Ssids_*.csv" -File | Sort-Object LastWriteTime -Descending | Select-Object -First 1).FullName
     Write-Host "--------------- Choices ------------------"
     Write-Host "[R] Report all Wifi settings to a new CSV file"
@@ -295,6 +296,7 @@ Do { # action
         Write-Host $sReturn
         if ($sReturn.StartsWith("ERR")) {PressEnterToContinue;Continue}
         # Networks
+        $Ssids_networkid = ""
         $networks, $sReturn = Get-Networks $apiKey $OrgId
         Write-Host $sReturn
         if ($sReturn.StartsWith("ERR")) {PressEnterToContinue;Continue}
@@ -432,7 +434,8 @@ Do { # action
                                 Write-Host "ERR: $($warning.ToString())" -ForegroundColor Yellow
                                 PressEnterToContinue
                             }
-                            Write-Host "    OK: Updated in network [$($NetworkUrl)]"  -ForegroundColor Yellow
+                            Write-Host "    OK: Updated in network [$($NetworkUrl)] $($results.wpaEncryptionMode)"  -ForegroundColor Yellow
+                            $ssids_networkid = "RESET" # force ssids to be reloaded
                         } # not skip
                     } # update needed
                 } # ssid to update

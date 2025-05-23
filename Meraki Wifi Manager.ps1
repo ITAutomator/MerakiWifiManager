@@ -13,6 +13,7 @@ Function Get-Ssids ($apiKey="", $OrgId="", $NetworkId = "", $include_disabled_ye
 {
     # Usage: $Ssids, $sReturn = Get-Ssids $apikey $OrgId $NetworkId $include_disabled_yesno
     $sReturn = "OK"
+    $ssids = $null
     $baseUrl = "https://api.meraki.com/api/v1"
     # Create the header for API calls
     $headers = @{
@@ -25,17 +26,17 @@ Function Get-Ssids ($apiKey="", $OrgId="", $NetworkId = "", $include_disabled_ye
         $Ssids = Invoke-RestMethod -Method Get -Uri $SsidsUrl -Headers $headers
     } catch {
         $warning = $_
-        $ssids = $null
         $bShowErr = $true
         if ($warning.ToString() -like "*endpoint only supports wireless networks*") {$bShowErr = $false}
         if ($bShowErr) {
             $sReturn = "ERR: Could not retrieve ssids for network: $($network.name) Error: $($warning)"
-            return $null, $sReturn
+            return @(), $sReturn
         }
     }
     if ($include_disabled_yesno -ne "yes") {
         $ssids = $ssids | Where-Object Enabled -eq $true
     }
+    if ($null -eq $ssids) {$ssids = @()}
     $sReturn = "OK: $($Ssids.Count) Ssids found"
     Return $Ssids, $sReturn
 } # Get-Ssids
